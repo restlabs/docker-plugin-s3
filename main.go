@@ -3,56 +3,52 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
-	upload "github.com/roshbhatia/docker-plugin-s3/pkg/cmd"
+	"github.com/docker/cli/cli-plugins/manager"
+	"github.com/docker/cli/cli-plugins/plugin"
+	"github.com/docker/cli/cli/command"
+	"github.com/roshbhatia/docker-plugin-s3/pkg/shared"
 	"github.com/spf13/cobra"
 )
 
-type PluginMetadata struct {
-	SchemaVersion    string   `json:"SchemaVersion"`
-	Vendor           string   `json:"Vendor"`
-	Name             string   `json:"Name"`
-	Version          string   `json:"Version"`
-	ShortDescription string   `json:"ShortDescription"`
-	DockerVersion    string   `json:"DockerVersion"`
-	Experimental     bool     `json:"Experimental"`
-	Platforms        []string `json:"Platforms"`
-}
-
-var metadata = PluginMetadata{
-	SchemaVersion:    "0.1.0",
-	Vendor:           "Rosh Bhatia",
-	Name:             "s3",
-	Version:          "0.1.0",
-	ShortDescription: "Upload Docker images to S3 compatible storage",
-	DockerVersion:    ">=20.10.0",
-	Experimental:     false,
-	Platforms:        []string{"linux/amd64", "darwin/amd64", "windows/amd64"},
+var metadata = manager.Metadata{
+	SchemaVersion:     "0.1.0",
+	Vendor:            "Rosh Bhatia",
+	Version:           "0.1.0",
+	ShortDescription:  "Upload Docker images to S3 compatible storage",
+	Experimental:      false,
 }
 
 func main() {
-	if len(os.Args) == 2 && os.Args[1] == "docker-cli-plugin-metadata" {
-		metadataJSON, err := json.Marshal(metadata)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to generate metadata JSON")
-			os.Exit(1)
+	plugin.Run(func(dockerCli command.Cli) *cobra.Command {
+		cmd := &cobra.Command{
+			Use:   "s3",
+			Short: "Docker CLI plugin to upload Docker images to S3 compatible storage",
+			PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+				if err := plugin.PersistentPreRunE(cmd, args); err != nil {
+					return err
+				}
+				return nil
+			},
 		}
-		fmt.Println(string(metadataJSON))
-		os.Exit(0)
-	}
 
-	cmd := &cobra.Command{
-		Use:              "s3",
-		Short:            "A Docker CLI plugin to upload Docker images to S3 compatible storage",
-		TraverseChildren: true,
-	}	
-	
+		cmd.AddCommand(&cobra.Command{
+			Use:   "docker-cli-plugin-metadata",
+			Short: "Print plugin metadata",
+			Run: func(cmd *cobra.Command, _ []string) {
+				metadataBytes, err := json.Marshal(metadata)
+				if err != nil {
+					fmt.Fprintln(dockerCli.Err(), err)
+					return
+				}
+				fmt.Fprintln(dockerCli.Out(), string(metadataBytes))
+				return
+			},
+		})
 
-	cmd.AddCommand(upload.UploadCmd)
+		cmd.AddCommand(shared.PullCmd)
+		cmd.AddCommand(shared.PushCmd)
 
-	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+		return cmd
+	}, metadata)
 }
