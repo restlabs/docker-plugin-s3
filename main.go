@@ -1,74 +1,58 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"log"
 	"os"
-	"os/exec"
-	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	upload "github.com/roshbhatia/docker-plugin-s3/pkg/cmd"
+	"github.com/spf13/cobra"
 )
 
+type PluginMetadata struct {
+	SchemaVersion    string   `json:"SchemaVersion"`
+	Vendor           string   `json:"Vendor"`
+	Name             string   `json:"Name"`
+	Version          string   `json:"Version"`
+	ShortDescription string   `json:"ShortDescription"`
+	DockerVersion    string   `json:"DockerVersion"`
+	Experimental     bool     `json:"Experimental"`
+	Platforms        []string `json:"Platforms"`
+}
+
+var metadata = PluginMetadata{
+	SchemaVersion:    "0.1.0",
+	Vendor:           "Rosh Bhatia",
+	Name:             "s3",
+	Version:          "0.1.0",
+	ShortDescription: "Upload Docker images to S3 compatible storage",
+	DockerVersion:    ">=20.10.0",
+	Experimental:     false,
+	Platforms:        []string{"linux/amd64", "darwin/amd64", "windows/amd64"},
+}
+
 func main() {
-	if len(os.Args) < 3 {
-		log.Fatalf("Usage: %s <image_name:tag> <bucket>", os.Args[0])
+	if len(os.Args) == 2 && os.Args[1] == "docker-cli-plugin-metadata" {
+		metadataJSON, err := json.Marshal(metadata)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to generate metadata JSON")
+			os.Exit(1)
+		}
+		fmt.Println(string(metadataJSON))
+		os.Exit(0)
 	}
 
-	imageName := os.Args[1]
-	bucket := os.Args[2]
+	cmd := &cobra.Command{
+		Use:              "s3",
+		Short:            "A Docker CLI plugin to upload Docker images to S3 compatible storage",
+		TraverseChildren: true,
+	}	
+	
 
-	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	endpoint := os.Getenv("AWS_S3_ENDPOINT")
-	region := os.Getenv("AWS_REGION")
+	cmd.AddCommand(upload.UploadCmd)
 
-	if accessKey == "" || secretKey == "" || endpoint == "" || region == "" {
-		log.Fatalf("Please set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_ENDPOINT, and AWS_REGION environment variables")
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
-
-	// Save the image to a tarball
-	imageTarball := fmt.Sprintf("%s.tar", strings.ReplaceAll(imageName, ":", "_"))
-	cmd := exec.Command("docker", "save", "-o", imageTarball, imageName)
-	err := cmd.Run()
-	if err != nil {
-		log.Fatalf("Failed to save Docker image: %v", err)
-	}
-	defer os.Remove(imageTarball)
-
-	creds := credentials.NewStaticCredentials(accessKey, secretKey, "")
-	_, err = creds.Get()
-	if err != nil {
-		log.Fatalf("Failed to load credentials: %v", err)
-	}
-
-	awsConfig := &aws.Config{
-		Region:           aws.String(region),
-		Endpoint:         aws.String(endpoint),
-		S3ForcePathStyle: aws.Bool(true),
-		Credentials:      creds,
-	}
-
-	sess := session.Must(session.NewSession(awsConfig))
-
-	uploader := s3manager.NewUploader(sess)
-	file, err := os.Open(imageTarball)
-	if err != nil {
-		log.Fatalf("Failed to open image tarball: %v", err)
-	}
-	defer file.Close()
-
-	result, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(imageTarball),
-		Body:   file,
-	})
-	if err != nil {
-		log.Fatalf("Failed to upload image: %v", err)
-	}
-
-	fmt.Printf("Successfully uploaded %s to %s\n", imageName, result.Location)
 }
