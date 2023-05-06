@@ -13,7 +13,7 @@ import (
 
 var metadata = manager.Metadata{
 	SchemaVersion:     "0.1.0",
-	Vendor:            "Rosh Bhatia",
+	Vendor:            "roshbhatia",
 	Version:           "0.1.0",
 	ShortDescription:  "Upload Docker images to S3 compatible storage",
 	Experimental:      false,
