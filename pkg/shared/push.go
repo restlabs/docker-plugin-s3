@@ -2,9 +2,7 @@ package shared
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -62,21 +60,20 @@ func pushImageToS3(ctx context.Context, image, bucket string) error {
 	defer dockerClient.Close()
 
 	// Save the image to a tarball
-
 	imageReader, err := dockerClient.ImageSave(ctx, []string{image})
 	if err != nil {
 		return fmt.Errorf("failed to save Docker image: %v", err)
 	}
 	defer imageReader.Close()
 
-	// Calculate the SHA256 digest of the image
-	h := sha256.New()
-	if _, err := io.Copy(h, imageReader); err != nil {
-		return fmt.Errorf("failed to calculate image digest: %v", err)
+	// Get the digest
+	imageInspect, _, err := dockerClient.ImageInspectWithRaw(ctx, image)
+	if err != nil {
+		return fmt.Errorf("failed to inspect Docker image: %v", err)
 	}
-	digest := fmt.Sprintf("sha256:%x", h.Sum(nil))
+	digest := imageInspect.RepoDigests[0]
 
-	// Upload the image to S3 with the digest as the filename
+	// Upload the image to S3 with the image ID as the filename
 	uploader := manager.NewUploader(s3Client)
 	result, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucket),

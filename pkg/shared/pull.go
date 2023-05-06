@@ -1,16 +1,19 @@
 package shared
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/docker/docker/client"
+
 	"github.com/spf13/cobra"
 )
 
@@ -40,14 +43,32 @@ func pullImageFromS3(ctx context.Context, image, bucket string) error {
 		return fmt.Errorf("unable to load AWS SDK config: %v", err)
 	}
 
+	if endpoint, ok := os.LookupEnv("AWS_S3_ENDPOINT"); ok {
+		// Use a custom endpoint resolver if AWS_S3_ENDPOINT is set
+		cfg.EndpointResolver = aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				URL:               endpoint,
+				HostnameImmutable: true,
+				SigningRegion:     region,
+			}, nil
+		})
+	}
+
 	s3Client := s3.NewFromConfig(cfg)
+
+	// Extract the image name and digest from the input
+	imageName := strings.SplitN(image, ":", 4)[0]
+	digest := strings.SplitN(image, ":", 4)[3]
+	newTag := fmt.Sprintf("%s:%s", imageName, digest)
+	fmt.Println(newTag)
 
 	// Download the image from S3
 	downloader := manager.NewDownloader(s3Client)
-	tmpFile, err := os.Create(image)
+	tmpFile, err := os.CreateTemp("", "image-")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %v", err)
 	}
+	defer os.Remove(tmpFile.Name())
 	defer tmpFile.Close()
 
 	n, err := downloader.Download(ctx, tmpFile, &s3.GetObjectInput{
@@ -66,13 +87,21 @@ func pullImageFromS3(ctx context.Context, image, bucket string) error {
 	}
 	defer dockerClient.Close()
 
-	tmpFile.Seek(0, io.SeekStart)
-	resp, err := dockerClient.ImageLoad(ctx, tmpFile, false)
+	imageBytes, err := ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		return fmt.Errorf("failed to read image contents: %v", err)
+	}
+
+	imageLoadResponse, err := dockerClient.ImageLoad(ctx, bytes.NewReader(imageBytes), false)
 	if err != nil {
 		return fmt.Errorf("failed to load image: %v", err)
 	}
-	defer resp.Body.Close()
+	defer imageLoadResponse.Body.Close()
 
-	fmt.Printf("Loaded image %s\n", image)
+	// Tag the image with the new tag
+	dockerClient.ImageTag(ctx, image, newTag)
+	fmt.Printf("Tagged image %s as %s\n", image, newTag)
+
+	fmt.Printf("Loaded image %s\n", newTag)
 	return nil
 }
