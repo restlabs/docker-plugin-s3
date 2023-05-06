@@ -60,7 +60,6 @@ func pullImageFromS3(ctx context.Context, image, bucket string) error {
 	imageName := strings.SplitN(image, ":", 4)[0]
 	digest := strings.SplitN(image, ":", 4)[3]
 	newTag := fmt.Sprintf("%s:%s", imageName, digest)
-	fmt.Println(newTag)
 
 	// Download the image from S3
 	downloader := manager.NewDownloader(s3Client)
