@@ -15,13 +15,16 @@ If you at all need to think about access management or container lifecycle manag
 
 ### Installation
 
-From within the repo, run `make`!
+From within the repo:
+
+- Run `make`.
+- Run `docker help`, you should see `s3*` under the section `Management Commands`.
 
 ### Commands
 
 - `docker s3 push`: Push a Docker image to S3 compatible storage
 - `docker s3 pull`: Pull a Docker image from S3 compatible storage
-- `docker s3 docker-cli-plugin-metadata`: Exposes plugin metadata needed to register the CLI plugin with
+- `docker s3 docker-cli-plugin-metadata`: Exposes plugin metadata needed to register the CLI plugin with the Docker CLI.
 
 ### Non-standard S3 Endpoint
 
