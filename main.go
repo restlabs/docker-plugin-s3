@@ -7,7 +7,7 @@ import (
 	"github.com/docker/cli/cli-plugins/manager"
 	"github.com/docker/cli/cli-plugins/plugin"
 	"github.com/docker/cli/cli/command"
-	"github.com/roshbhatia/docker-plugin-s3/pkg/shared"
+	"github.com/roshbhatia/docker-plugin-s3/pkg/commands"
 	"github.com/spf13/cobra"
 )
 
@@ -46,8 +46,8 @@ func main() {
 			},
 		})
 
-		cmd.AddCommand(shared.PullCmd)
-		cmd.AddCommand(shared.PushCmd)
+		cmd.AddCommand(commands.PullCmd)
+		cmd.AddCommand(commands.PushCmd)
 
 		return cmd
 	}, metadata)
