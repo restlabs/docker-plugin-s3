@@ -12,10 +12,10 @@ import (
 )
 
 var metadata = manager.Metadata{
-	SchemaVersion:     "0.1.0",
+	SchemaVersion:     "1.0.0",
 	Vendor:            "roshbhatia",
-	Version:           "0.1.0",
-	ShortDescription:  "Upload Docker images to S3 compatible storage",
+	Version:           "1.0.0",
+	ShortDescription:  "Upload and download Docker images to S3 compatible storage",
 	Experimental:      false,
 }
 
